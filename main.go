@@ -14,42 +14,41 @@ import (
 )
 
 func main() {
-	//	const outputPlugin = "test_decoding"
-	const outputPlugin = "pgoutput"
-	conn, err := pgconn.Connect(context.Background(), os.Getenv("PGLOGREPL_DEMO_CONN_STRING"))
+	var listenAddress string
+	flag.StringVar(&listenAddress, "listen", "127.0.0.1:15432", "Listen address")
+	flag.Parse()
+
+	conn, err := pgconn.Connect(context.Background(), os.Getenv("PG_CONN"))
 	if err != nil {
 		log.Fatalln("failed to connect to PostgreSQL server:", err)
 	}
 	defer conn.Close(context.Background())
 
-	result := conn.Exec(context.Background(), "DROP PUBLICATION IF EXISTS pglogrepl_demo;")
-	_, err = result.ReadAll()
+	createPublication(conn)
+	ln, err := net.Listen("tcp", listenAddress)
 	if err != nil {
-		log.Fatalln("drop publication if exists error", err)
+		log.Fatalln("serve at ip:", err)
 	}
-
-	result = conn.Exec(context.Background(), "CREATE PUBLICATION pglogrepl_demo FOR ALL TABLES;")
-	_, err = result.ReadAll()
-	if err != nil {
-		log.Fatalln("create publication error", err)
+	for {
+		client, err := ln.Accept()
+		if err != nil {
+			log.Fatalln("failed to accept client:", err)
+		}
+		log.Println("Accepted connection from", client.RemoteAddr())
+		backend := NewPgPipeBackend(client, conn)
+		go func() {
+			err := backend.Run()
+			if err != nil {
+				log.Println(err)
+			}
+			log.Println("Closed connection from", conn.RemoteAddr())
+		}()
 	}
-	log.Println("create publication pglogrepl_demo")
+}
 
-	var pluginArguments []string
-	if outputPlugin == "pgoutput" {
-		pluginArguments = []string{"proto_version '1'", "publication_names 'pglogrepl_demo'"}
-	} else if outputPlugin == "wal2json" {
-		pluginArguments = []string{"\"pretty-print\" 'true'"}
-	}
-
-	sysident, err := pglogrepl.IdentifySystem(context.Background(), conn)
-	if err != nil {
-		log.Fatalln("IdentifySystem failed:", err)
-	}
-	log.Println("SystemID:", sysident.SystemID, "Timeline:", sysident.Timeline, "XLogPos:", sysident.XLogPos, "DBName:", sysident.DBName)
-
-	slotName := "pglogrepl_demo"
-
+func handleConnection(client pgproto3.Backend, conn pgconn.Conn) {
+	// TODO
+	slotName := "pgpipe"
 	_, err = pglogrepl.CreateReplicationSlot(context.Background(), conn, slotName, outputPlugin, pglogrepl.CreateReplicationSlotOptions{Temporary: true})
 	if err != nil {
 		log.Fatalln("CreateReplicationSlot failed:", err)

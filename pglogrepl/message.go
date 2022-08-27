@@ -52,6 +52,7 @@ const (
 // Message is a message received from server.
 type Message interface {
 	Type() MessageType
+	Raw() []byte
 }
 
 // MessageDecoder decodes meessage into struct.
@@ -60,6 +61,7 @@ type MessageDecoder interface {
 }
 
 type baseMessage struct {
+	raw     []byte
 	msgType MessageType
 }
 
@@ -79,6 +81,10 @@ func (m *baseMessage) SetType(t MessageType) {
 // the first message type byte.
 func (m *baseMessage) Decode(src []byte) error {
 	return fmt.Errorf("message decode not implemented")
+}
+
+func (m *baseMessage) Raw() []byte {
+	return m.raw
 }
 
 func (m *baseMessage) lengthError(name string, expectedLen, actualLen int) error {
@@ -154,6 +160,7 @@ type BeginMessage struct {
 
 // Decode decodes the message from src.
 func (m *BeginMessage) Decode(src []byte) error {
+	m.raw = src
 	if len(src) < 20 {
 		return m.lengthError("BeginMessage", 20, len(src))
 	}
@@ -167,6 +174,10 @@ func (m *BeginMessage) Decode(src []byte) error {
 	m.SetType(MessageTypeBegin)
 
 	return nil
+}
+
+func (m *BeginMessage) Raw() []byte {
+	return m.raw
 }
 
 // CommitMessage is a commit message.
@@ -184,6 +195,7 @@ type CommitMessage struct {
 
 // Decode decodes the message from src.
 func (m *CommitMessage) Decode(src []byte) error {
+	m.raw = src
 	if len(src) < 25 {
 		return m.lengthError("CommitMessage", 25, len(src))
 	}
@@ -201,6 +213,10 @@ func (m *CommitMessage) Decode(src []byte) error {
 	return nil
 }
 
+func (m *CommitMessage) Raw() []byte {
+	return m.raw
+}
+
 // OriginMessage is a origin message.
 type OriginMessage struct {
 	baseMessage
@@ -211,6 +227,7 @@ type OriginMessage struct {
 
 // Decode decodes to message from src.
 func (m *OriginMessage) Decode(src []byte) error {
+	m.raw = src
 	if len(src) < 8 {
 		return m.lengthError("OriginMessage", 9, len(src))
 	}
@@ -226,6 +243,10 @@ func (m *OriginMessage) Decode(src []byte) error {
 	m.SetType(MessageTypeOrigin)
 
 	return nil
+}
+
+func (m *OriginMessage) Raw() []byte {
+	return m.raw
 }
 
 // RelationMessageColumn is one column in a RelationMessage.
@@ -255,6 +276,7 @@ type RelationMessage struct {
 
 // Decode decodes to message from src.
 func (m *RelationMessage) Decode(src []byte) error {
+	m.raw = src
 	if len(src) < 7 {
 		return m.lengthError("RelationMessage", 7, len(src))
 	}
@@ -305,6 +327,10 @@ func (m *RelationMessage) Decode(src []byte) error {
 	return nil
 }
 
+func (m *RelationMessage) Raw() []byte {
+	return m.raw
+}
+
 // TypeMessage is a type message.
 type TypeMessage struct {
 	baseMessage
@@ -315,6 +341,7 @@ type TypeMessage struct {
 
 // Decode decodes to message from src.
 func (m *TypeMessage) Decode(src []byte) error {
+	m.raw = src
 	if len(src) < 6 {
 		return m.lengthError("TypeMessage", 6, len(src))
 	}
@@ -337,6 +364,10 @@ func (m *TypeMessage) Decode(src []byte) error {
 	m.SetType(MessageTypeType)
 
 	return nil
+}
+
+func (m *TypeMessage) Raw() []byte {
+	return m.raw
 }
 
 // List of types of data in a tuple.
@@ -382,6 +413,7 @@ type TupleData struct {
 
 // Decode decodes to message from src.
 func (m *TupleData) Decode(src []byte) (int, error) {
+	m.raw = src
 	var low, used int
 
 	m.ColumnNum, used = m.decodeUint16(src)
@@ -411,6 +443,10 @@ func (m *TupleData) Decode(src []byte) (int, error) {
 	return low, nil
 }
 
+func (m *TupleData) Raw() []byte {
+	return m.raw
+}
+
 // InsertMessage is a insert message
 type InsertMessage struct {
 	baseMessage
@@ -421,6 +457,7 @@ type InsertMessage struct {
 
 // Decode decodes to message from src.
 func (m *InsertMessage) Decode(src []byte) error {
+	m.raw = src
 	if len(src) < 8 {
 		return m.lengthError("InsertMessage", 8, len(src))
 	}
@@ -445,6 +482,10 @@ func (m *InsertMessage) Decode(src []byte) error {
 	m.SetType(MessageTypeInsert)
 
 	return nil
+}
+
+func (m *InsertMessage) Raw() []byte {
+	return m.raw
 }
 
 // List of types of UpdateMessage tuples.
@@ -483,6 +524,7 @@ type UpdateMessage struct {
 
 // Decode decodes to message from src.
 func (m *UpdateMessage) Decode(src []byte) (err error) {
+	m.raw = src
 	if len(src) < 6 {
 		return m.lengthError("UpdateMessage", 6, len(src))
 	}
@@ -522,6 +564,10 @@ func (m *UpdateMessage) Decode(src []byte) (err error) {
 	return nil
 }
 
+func (m *UpdateMessage) Raw() []byte {
+	return m.raw
+}
+
 // List of types of DeleteMessage tuples.
 const (
 	DeleteMessageTupleTypeKey = uint8('K')
@@ -551,6 +597,7 @@ type DeleteMessage struct {
 
 // Decode decodes a message from src.
 func (m *DeleteMessage) Decode(src []byte) (err error) {
+	m.raw = src
 	if len(src) < 4 {
 		return m.lengthError("DeleteMessage", 4, len(src))
 	}
@@ -579,6 +626,10 @@ func (m *DeleteMessage) Decode(src []byte) (err error) {
 	return nil
 }
 
+func (m *DeleteMessage) Raw() []byte {
+	return m.raw
+}
+
 // List of truncate options.
 const (
 	TruncateOptionCascade = uint8(1) << iota
@@ -595,6 +646,7 @@ type TruncateMessage struct {
 
 // Decode decodes to message from src.
 func (m *TruncateMessage) Decode(src []byte) (err error) {
+	m.raw = src
 	if len(src) < 9 {
 		return m.lengthError("TruncateMessage", 9, len(src))
 	}
@@ -647,5 +699,10 @@ func Parse(data []byte) (m Message, err error) {
 		}
 	}
 
-	return decoder.(Message), nil
+	msg := decoder.(Message)
+	return msg, nil
+}
+
+func (m *TruncateMessage) Raw() []byte {
+	return m.raw
 }
