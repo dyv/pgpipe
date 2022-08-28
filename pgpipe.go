@@ -150,7 +150,6 @@ func (p *PgPipeBackend) handleReplication(ctx context.Context, m *pgproto3.Query
 			}
 			return errors.Wrapf(err, "failed to receive message")
 		}
-		log.Printf("query response: %T", msg)
 		switch msg := msg.(type) {
 		case *pgproto3.CopyBothResponse:
 			err := p.client.Send(msg)
@@ -164,7 +163,7 @@ func (p *PgPipeBackend) handleReplication(ctx context.Context, m *pgproto3.Query
 				if err != nil {
 					log.Fatalln("ParsePrimaryKeepaliveMessage failed:", err)
 				}
-				log.Println("Primary Keepalive Message =>", "ServerWALEnd:", pkm.ServerWALEnd, "ServerTime:", pkm.ServerTime, "ReplyRequested:", pkm.ReplyRequested)
+				log.Debugln("Primary Keepalive Message =>", "ServerWALEnd:", pkm.ServerWALEnd, "ServerTime:", pkm.ServerTime, "ReplyRequested:", pkm.ReplyRequested)
 				err = p.client.Send(msg)
 				if err != nil {
 					return errors.Errorf("failed to send keep alive message to client: %w", err)
@@ -490,11 +489,7 @@ func (p *PgPipeBackend) handlePassword() error {
 	if !ok {
 		return errors.Wrapf(err, "expected password message got different type: %T", pswd)
 	}
-	// TODO: Don't hard code the expected password
-	if pswd.Password != "development" {
-		// Logging auth tokens just for the tests debugging convenience...
-		return errors.Wrap(err, "access denied")
-	}
+	// TODO: actually check passwords
 	return nil
 }
 
