@@ -124,7 +124,7 @@ func (p *PgPipeBackend) handleReplication(ctx context.Context, m *pgproto3.Query
 			log.Debug("keepalive: attempting to receive client keep alive")
 			resp, err := p.client.Receive()
 			if err != nil {
-				return errors.Errorf("commit err: %w", err)
+				return errors.Wrapf(err, "keepalive err")
 			}
 			switch resp := resp.(type) {
 			case *pgproto3.CopyData:
@@ -200,7 +200,7 @@ func (p *PgPipeBackend) handleReplication(ctx context.Context, m *pgproto3.Query
 				case *pglogrepl.BeginMessage:
 					resp, err := p.client.Receive()
 					if err != nil {
-						return errors.Errorf("commit err: %w", err)
+						return errors.Errorf("begin err: %w", err)
 					}
 					log.Printf("begin message resp: %v", resp)
 					commit := resp.Encode(nil)
@@ -272,8 +272,14 @@ func (p *PgPipeBackend) handleReplication(ctx context.Context, m *pgproto3.Query
 				return errors.Wrapf(err, "failed to send copy out response: %T", msg)
 			}
 			return nil
+		case *pgproto3.ErrorResponse:
+			err := p.client.Send(msg)
+			if err != nil {
+				return errors.Wrapf(err, "failed to send error response: %T", msg)
+			}
+			return nil
 		default:
-			panic("unhandled")
+			log.Panicf("unhandled message type: %T", msg)
 		}
 	}
 
@@ -298,7 +304,17 @@ func (p *PgPipeBackend) proxyQuery(ctx context.Context, m *pgproto3.Query) error
 
 		switch msg := msg.(type) {
 		// TODO: We could intercept table descriptions to rewrite tables here
-		case *pgproto3.RowDescription, *pgproto3.DataRow, *pgproto3.CommandComplete:
+		case *pgproto3.RowDescription, *pgproto3.CommandComplete:
+			err = p.client.Send(msg)
+			if err != nil {
+				return errors.Errorf("failed to send row descriptions: %w", err)
+			}
+		case *pgproto3.DataRow:
+			values := []string{}
+			for _, v := range msg.Values {
+				values = append(values, string(v))
+			}
+			log.Println("response: ", values)
 			err = p.client.Send(msg)
 			if err != nil {
 				return errors.Errorf("failed to send row descriptions: %w", err)
